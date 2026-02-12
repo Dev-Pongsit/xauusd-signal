@@ -1,0 +1,31 @@
+# ============================
+# XAUUSD AI Signal System
+# ============================
+
+# Web Framework (Dashboard + API)
+flask==3.1.0
+gunicorn==23.0.0
+
+# Data Sources (ฟรี — ไม่ต้องพึ่ง MT5)
+yfinance==0.2.50
+requests==2.32.0
+
+# Technical Analysis
+pandas==2.2.3
+numpy==2.1.0
+ta==0.11.0
+
+# AI Analysis (Claude)
+anthropic==0.39.0
+
+# Scheduling
+apscheduler==3.11.0
+
+# Notifications
+python-telegram-bot==21.9
+
+# Environment
+python-dotenv==1.0.1
+
+# Timezone
+pytz==2024.2

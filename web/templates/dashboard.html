@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XAUUSD AI Signal — ทองคำ</title>
+    <style>
+        :root {
+            --gold: #FFD700;
+            --gold-dark: #B8860B;
+            --gold-light: #FFF8DC;
+            --bg: #0F1118;
+            --card: #1A1D2E;
+            --card-border: #2A2D3E;
+            --text: #E8E8F0;
+            --text-dim: #8B8DA0;
+            --buy: #00D4AA;
+            --buy-bg: rgba(0,212,170,0.1);
+            --sell: #FF4757;
+            --sell-bg: rgba(255,71,87,0.1);
+            --strong: #FFD700;
+            --moderate: #4ECDC4;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1A1D2E 0%, #2A1F0E 100%);
+            border-bottom: 2px solid var(--gold-dark);
+            padding: 20px 24px;
+        }
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .logo-text h1 {
+            font-size: 22px;
+            color: var(--gold);
+            letter-spacing: 1px;
+        }
+        .logo-text span {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        /* Symbol Badge — ชัดเจนว่าคู่เงินอะไร */
+        .symbol-badge {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            color: #000;
+            font-weight: 800;
+            font-size: 18px;
+            padding: 10px 24px;
+            border-radius: 12px;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        .symbol-badge small {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            opacity: 0.7;
+        }
+
+        /* Price Display */
+        .price-section {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+        .price-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .price-main {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+        }
+        .price-label {
+            font-size: 13px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .price-value {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--gold);
+        }
+        .price-change {
+            font-size: 16px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 8px;
+        }
+        .price-up { color: var(--buy); background: var(--buy-bg); }
+        .price-down { color: var(--sell); background: var(--sell-bg); }
+
+        .scan-btn {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            color: #000;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .scan-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(255,215,0,0.3); }
+        .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* Stats Row */
+        .stats-row {
+            max-width: 1200px;
+            margin: 0 auto 24px;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gold);
+        }
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* Signals List */
+        .signals-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px 40px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Signal Card */
+        .signal-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.2s;
+        }
+        .signal-card:hover {
+            border-color: var(--gold-dark);
+            transform: translateY(-1px);
+        }
+        .signal-card.buy { border-left: 4px solid var(--buy); }
+        .signal-card.sell { border-left: 4px solid var(--sell); }
+
+        .signal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .signal-pair {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .signal-pair .pair-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--gold);
+        }
+        .signal-pair .pair-label {
+            font-size: 11px;
+            color: var(--text-dim);
+            background: rgba(255,215,0,0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .direction-badge {
+            font-size: 16px;
+            font-weight: 800;
+            padding: 8px 20px;
+            border-radius: 10px;
+            letter-spacing: 1px;
+        }
+        .direction-badge.buy { background: var(--buy-bg); color: var(--buy); border: 1px solid var(--buy); }
+        .direction-badge.sell { background: var(--sell-bg); color: var(--sell); border: 1px solid var(--sell); }
+
+        .strength-badge {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .strength-badge.strong { background: rgba(255,215,0,0.15); color: var(--strong); }
+        .strength-badge.moderate { background: rgba(78,205,196,0.15); color: var(--moderate); }
+        .strength-badge.weak { background: rgba(139,141,160,0.15); color: var(--text-dim); }
+
+        .signal-body {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .signal-prices {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+        }
+        .price-row .label { color: var(--text-dim); font-size: 13px; }
+        .price-row .value { font-weight: 600; font-size: 15px; }
+        .price-row.entry .value { color: var(--gold); }
+        .price-row.sl .value { color: var(--sell); }
+        .price-row.tp .value { color: var(--buy); }
+
+        .signal-indicators {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .ind-item {
+            font-size: 12px;
+            color: var(--text-dim);
+            padding: 4px 0;
+        }
+        .ind-item span { color: var(--text); font-weight: 600; }
+
+        .signal-reasoning {
+            background: rgba(255,215,0,0.05);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .signal-reasoning .label {
+            color: var(--gold);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .signal-footer {
+            margin-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .confidence-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+
+        /* AI Section */
+        .ai-analysis {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: rgba(100,100,255,0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(100,100,255,0.1);
+        }
+        .ai-analysis .label { color: #7C83FF; font-weight: 600; font-size: 13px; }
+        .ai-analysis p { font-size: 13px; margin-top: 4px; line-height: 1.5; }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .price-value { font-size: 32px; }
+            .header-inner { flex-direction: column; text-align: center; }
+            .signal-body { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-inner">
+        <div class="logo">
+            <div class="logo-icon">🥇</div>
+            <div class="logo-text">
+                <h1>XAUUSD AI SIGNAL</h1>
+                <span>AI-Powered Gold Trading Signals</span>
+            </div>
+        </div>
+        <div class="symbol-badge">
+            XAUUSD
+            <small>Gold Spot / US Dollar</small>
+        </div>
+    </div>
+</div>
+
+<!-- Price -->
+<div class="price-section">
+    <div class="price-card">
+        <div>
+            <div class="price-label">XAUUSD — ทองคำ (Gold Spot) ราคาปัจจุบัน</div>
+            <div class="price-main">
+                <div class="price-value" id="livePrice">${{ price.price }}</div>
+                <div class="price-change {{ 'price-up' if price.change >= 0 else 'price-down' }}">
+                    {{ '+' if price.change >= 0 else '' }}{{ price.change }} ({{ price.change_pct }}%)
+                </div>
+            </div>
+        </div>
+        <button class="scan-btn" onclick="manualScan()" id="scanBtn">
+            🔍 Scan Signal Now
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">Total Signals</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--buy)">{{ stats.buy }}</div>
+        <div class="stat-label">BUY Signals</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--sell)">{{ stats.sell }}</div>
+        <div class="stat-label">SELL Signals</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.strong }}</div>
+        <div class="stat-label">STRONG Signals</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.avg_confidence }}%</div>
+        <div class="stat-label">Avg Confidence</div>
+    </div>
+</div>
+
+<!-- Signals -->
+<div class="signals-section">
+    <div class="section-title">📊 Signal History — XAUUSD (ทองคำ)</div>
+
+    {% if signals %}
+        {% for s in signals %}
+        <div class="signal-card {{ s.direction|lower }}">
+            <div class="signal-header">
+                <div class="signal-pair">
+                    <span class="pair-name">🥇 XAUUSD</span>
+                    <span class="pair-label">ทองคำ / Gold Spot</span>
+                    <span class="strength-badge {{ s.strength|lower }}">
+                        {{ '💪' if s.strength == 'STRONG' else '👍' if s.strength == 'MODERATE' else '🤏' }}
+                        {{ s.strength }}
+                    </span>
+                </div>
+                <div>
+                    <span class="direction-badge {{ s.direction|lower }}">
+                        {{ '🟢' if s.direction == 'BUY' else '🔴' }} {{ s.direction }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="signal-body">
+                <!-- Prices -->
+                <div class="signal-prices">
+                    <div class="price-row entry">
+                        <span class="label">📍 Entry</span>
+                        <span class="value">${{ s.entry }}</span>
+                    </div>
+                    <div class="price-row sl">
+                        <span class="label">🛑 Stop Loss</span>
+                        <span class="value">${{ s.sl }}</span>
+                    </div>
+                    <div class="price-row tp">
+                        <span class="label">🎯 TP1</span>
+                        <span class="value">${{ s.tp1 }}</span>
+                    </div>
+                    <div class="price-row tp">
+                        <span class="label">🎯 TP2</span>
+                        <span class="value">${{ s.tp2 }}</span>
+                    </div>
+                    <div class="price-row">
+                        <span class="label">📊 R:R</span>
+                        <span class="value">1:{{ s.rr_ratio }}</span>
+                    </div>
+                </div>
+
+                <!-- Indicators -->
+                <div>
+                    <div class="signal-indicators">
+                        <div class="ind-item">EMA 9: <span>{{ s.indicators.ema_fast }}</span></div>
+                        <div class="ind-item">EMA 21: <span>{{ s.indicators.ema_slow }}</span></div>
+                        <div class="ind-item">MACD: <span>{{ s.indicators.macd }}</span></div>
+                        <div class="ind-item">MACD Hist: <span>{{ s.indicators.macd_hist }}</span></div>
+                        <div class="ind-item">RSI: <span>{{ s.indicators.rsi }}</span></div>
+                        <div class="ind-item">ATR: <span>{{ s.indicators.atr }}</span></div>
+                    </div>
+
+                    <!-- Confidence -->
+                    <div style="margin-top:12px; font-size:13px; color:var(--text-dim)">
+                        Confidence: <strong style="color:var(--gold)">{{ s.confidence }}%</strong>
+                    </div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width:{{ s.confidence }}%;
+                            background: {{ 'var(--buy)' if s.confidence >= 70 else 'var(--gold)' if s.confidence >= 50 else 'var(--sell)' }}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reasoning -->
+                <div class="signal-reasoning">
+                    <div class="label">💡 Reasoning</div>
+                    {{ s.reasoning }}
+
+                    {% if s.ai_analysis %}
+                    <div class="ai-analysis" style="margin-top:10px">
+                        <div class="label">🤖 AI Analysis</div>
+                        <p>{{ s.ai_analysis.reasoning }}</p>
+                        <p style="font-size:11px;color:var(--text-dim);margin-top:4px">
+                            Market: {{ s.ai_analysis.market_condition }} |
+                            Trend: {{ s.ai_analysis.trend }} |
+                            AI Conf: {{ s.ai_analysis.confidence }}%
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="signal-footer">
+                <span>⏰ {{ s.timestamp }}</span>
+                <span>{{ s.id }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="icon">📊</div>
+            <h3>ยังไม่มี Signal</h3>
+            <p>กด "Scan Signal Now" หรือรอระบบ scan อัตโนมัติ</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+async function manualScan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Scanning...';
+
+    try {
+        const res = await fetch('/api/scan', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'signal') {
+            alert('✅ New signal found! Refreshing...');
+        } else {
+            alert('❌ No signal at this time');
+        }
+        location.reload();
+    } catch (e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Scan Signal Now';
+    }
+}
+
+// Auto-refresh price every 60s
+setInterval(async () => {
+    try {
+        const res = await fetch('/api/price');
+        const data = await res.json();
+        if (data.price > 0) {
+            document.getElementById('livePrice').textContent = '$' + data.price;
+        }
+    } catch(e) {}
+}, 60000);
+</script>
+
+</body>
+</html>
