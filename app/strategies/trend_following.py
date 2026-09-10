@@ -18,6 +18,14 @@ from datetime import datetime
 import uuid
 import logging
 
+from app.config import (
+    ACCOUNT_BALANCE,
+    RISK_PERCENT,
+    XAUUSD_CONTRACT_SIZE,
+    MIN_LOT,
+    MAX_LOT,
+)
+
 logger = logging.getLogger(__name__)
 
 # ============================
@@ -34,8 +42,20 @@ DEFAULT_PARAMS = {
     "atr_sl_mult": 1.5,    # SL = ATR × 1.5
     "atr_tp1_mult": 2.0,   # TP1 = ATR × 2.0
     "atr_tp2_mult": 3.0,   # TP2 = ATR × 3.0
+    "atr_tp3_mult": 4.5,   # TP3 = ATR × 4.5
     "rsi_overbought": 70,
     "rsi_oversold": 30,
+    # --- Trade plan (แผนเทรดครบชุด) ---
+    "entry_zone_atr": 0.25,           # ความกว้าง entry zone = ATR × 0.25
+    "tp_split": (0.4, 0.4, 0.2),      # สัดส่วนปิดไม้ที่ TP1 / TP2 / TP3
+    "be_trigger": "TP1",              # เลื่อน SL → entry เมื่อราคาถึงระดับนี้
+    "trail_atr_mult": 1.0,            # trailing stop = ATR × 1.0 (หลัง breakeven)
+    # --- Position sizing (อ่านค่าเริ่มต้นจาก .env ผ่าน app/config.py) ---
+    "account_balance": ACCOUNT_BALANCE,
+    "risk_percent": RISK_PERCENT,
+    "contract_size": XAUUSD_CONTRACT_SIZE,
+    "min_lot": MIN_LOT,
+    "max_lot": MAX_LOT,
 }
 
 
@@ -70,6 +90,92 @@ def classify_ema_ribbon(ema_fast: float, ema_slow: float,
         "state": state,
         "gap": round(gap, 2),
         **meta,
+    }
+
+
+def build_trade_plan(direction: str, entry: float, atr: float, params: dict = None) -> dict:
+    """
+    สร้างแผนเทรดครบชุดจากราคา entry + ATR
+
+    ประกอบด้วย:
+      - entry zone (ช่วงราคาเข้าที่ยอมรับได้)
+      - stop loss + ระยะ SL
+      - TP1 / TP2 / TP3 พร้อม R:R และสัดส่วนปิดไม้ (partial close)
+      - position size (lot) คำนวณจาก account_balance × risk_percent
+      - แผนบริหารไม้: breakeven + trailing stop
+
+    Args:
+        direction: "BUY" หรือ "SELL"
+        entry: ราคาเข้า
+        atr: ค่า ATR ปัจจุบัน
+        params: override DEFAULT_PARAMS ได้
+
+    Returns:
+        dict แผนเทรดครบชุด
+    """
+    p = {**DEFAULT_PARAMS, **(params or {})}
+    sign = 1 if direction == "BUY" else -1
+
+    sl_dist = atr * p["atr_sl_mult"]
+    tp_dists = [
+        atr * p["atr_tp1_mult"],
+        atr * p["atr_tp2_mult"],
+        atr * p["atr_tp3_mult"],
+    ]
+    zone_half = atr * p["entry_zone_atr"] / 2
+
+    sl = entry - sign * sl_dist
+    zone_lo, zone_hi = sorted([entry - zone_half, entry + zone_half])
+
+    # --- Position sizing ---
+    # XAUUSD: กำไร/ขาดทุน 1 ไม้ = ระยะราคา (USD) × contract_size × lot
+    risk_usd_target = p["account_balance"] * p["risk_percent"] / 100
+    raw_lot = risk_usd_target / (sl_dist * p["contract_size"]) if sl_dist > 0 else 0.0
+    lot = round(max(p["min_lot"], min(p["max_lot"], raw_lot)), 2)
+    actual_risk_usd = round(lot * sl_dist * p["contract_size"], 2)
+    risk_pct_actual = round(actual_risk_usd / p["account_balance"] * 100, 2) if p["account_balance"] > 0 else 0.0
+    # min_lot ทำให้ความเสี่ยงจริงเกินเป้า หรือ max_lot ทำให้ต่ำกว่าเป้า
+    risk_exceeds_target = actual_risk_usd > risk_usd_target * 1.05
+
+    # --- TP levels + partial close ---
+    tp_levels = []
+    for i, (dist, part) in enumerate(zip(tp_dists, p["tp_split"]), start=1):
+        tp_levels.append({
+            "level": i,
+            "price": round(entry + sign * dist, 2),
+            "distance": round(dist, 2),
+            "rr": round(dist / sl_dist, 2) if sl_dist > 0 else 0.0,
+            "close_percent": int(round(part * 100)),
+            "lot": round(lot * part, 2),
+        })
+
+    return {
+        "direction": direction,
+        "entry": round(entry, 2),
+        "entry_zone": {"min": round(zone_lo, 2), "max": round(zone_hi, 2)},
+        "sl": round(sl, 2),
+        "sl_distance": round(sl_dist, 2),
+        "tp": tp_levels,
+        # --- alias เพื่อ backward compatibility ---
+        "tp1": tp_levels[0]["price"],
+        "tp2": tp_levels[1]["price"],
+        "tp3": tp_levels[2]["price"],
+        "rr_ratio": tp_levels[0]["rr"],
+        "position": {
+            "lot": lot,
+            "risk_usd": actual_risk_usd,
+            "risk_percent": p["risk_percent"],
+            "risk_percent_actual": risk_pct_actual,
+            "risk_exceeds_target": risk_exceeds_target,
+            "account_balance": p["account_balance"],
+            "contract_size": p["contract_size"],
+        },
+        "management": {
+            "breakeven_trigger": p["be_trigger"],
+            "breakeven_price": round(entry, 2),
+            "trailing_atr_mult": p["trail_atr_mult"],
+            "trailing_distance": round(atr * p["trail_atr_mult"], 2),
+        },
     }
 
 
@@ -192,22 +298,9 @@ def generate_signal(df: pd.DataFrame, params: dict = None) -> dict | None:
         return None
 
     # ============================
-    # คำนวณ SL / TP (ATR-based)
+    # คำนวณแผนเทรดครบชุด (Buy/SL/TP + lot + management)
     # ============================
-    sl_dist = atr_now * p["atr_sl_mult"]
-    tp1_dist = atr_now * p["atr_tp1_mult"]
-    tp2_dist = atr_now * p["atr_tp2_mult"]
-
-    if direction == "BUY":
-        sl = price - sl_dist
-        tp1 = price + tp1_dist
-        tp2 = price + tp2_dist
-    else:
-        sl = price + sl_dist
-        tp1 = price - tp1_dist
-        tp2 = price - tp2_dist
-
-    rr_ratio = tp1_dist / sl_dist if sl_dist > 0 else 0
+    plan = build_trade_plan(direction, price, atr_now, p)
 
     signal = {
         "id": f"SIG-{uuid.uuid4().hex[:8].upper()}",
@@ -216,11 +309,14 @@ def generate_signal(df: pd.DataFrame, params: dict = None) -> dict | None:
         "direction": direction,
         "strength": strength,
         "confidence": confidence,
-        "entry": round(price, 2),
-        "sl": round(sl, 2),
-        "tp1": round(tp1, 2),
-        "tp2": round(tp2, 2),
-        "rr_ratio": round(rr_ratio, 2),
+        "entry": plan["entry"],
+        "entry_zone": plan["entry_zone"],
+        "sl": plan["sl"],
+        "tp1": plan["tp1"],
+        "tp2": plan["tp2"],
+        "tp3": plan["tp3"],
+        "rr_ratio": plan["rr_ratio"],
+        "trade_plan": plan,
         "reasoning": reasoning,
         "ema_ribbon": classify_ema_ribbon(ema_fast_now, ema_slow_now, atr_now),
         "indicators": {

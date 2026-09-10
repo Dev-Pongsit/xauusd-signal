@@ -1,3 +1,4 @@
+# ทดสอบ
 """
 ==========================================
 🧪 Local Test Script — ทดสอบระบบทั้งหมด
@@ -178,6 +179,11 @@ def test_signal(df):
             # Force test — สร้าง mock signal เพื่อทดสอบส่วนอื่น
             print()
             print(f"  {YELLOW}🔧 สร้าง Mock Signal เพื่อทดสอบ pipeline ต่อ...{RESET}")
+            from app.strategies.trend_following import build_trade_plan
+
+            mock_price = round(df["close"].iloc[-1], 2)
+            mock_atr = round(df["high"].iloc[-1] - df["low"].iloc[-1], 2) or 5.0
+            mock_plan = build_trade_plan("BUY", mock_price, mock_atr)
             signal = {
                 "id": "SIG-TEST0001",
                 "timestamp": "2026-02-12 16:00:00",
@@ -185,11 +191,14 @@ def test_signal(df):
                 "direction": "BUY",
                 "strength": "STRONG",
                 "confidence": 85,
-                "entry": round(df["close"].iloc[-1], 2),
-                "sl": round(df["close"].iloc[-1] - df["close"].iloc[-1] * 0.01, 2),
-                "tp1": round(df["close"].iloc[-1] + df["close"].iloc[-1] * 0.015, 2),
-                "tp2": round(df["close"].iloc[-1] + df["close"].iloc[-1] * 0.025, 2),
-                "rr_ratio": 1.5,
+                "entry": mock_plan["entry"],
+                "entry_zone": mock_plan["entry_zone"],
+                "sl": mock_plan["sl"],
+                "tp1": mock_plan["tp1"],
+                "tp2": mock_plan["tp2"],
+                "tp3": mock_plan["tp3"],
+                "rr_ratio": mock_plan["rr_ratio"],
+                "trade_plan": mock_plan,
                 "reasoning": "[MOCK] Test signal for pipeline verification",
                 "indicators": {
                     "ema_fast": round(df["close"].iloc[-1], 2),
@@ -215,7 +224,11 @@ def test_signal(df):
             print(f"     🛑 SL:     ${signal['sl']}")
             print(f"     🎯 TP1:    ${signal['tp1']}")
             print(f"     🎯 TP2:    ${signal['tp2']}")
+            print(f"     🎯 TP3:    ${signal.get('tp3', 'N/A')}")
             print(f"     📊 R:R:    1:{signal['rr_ratio']}")
+            if signal.get("trade_plan"):
+                pos = signal["trade_plan"]["position"]
+                print(f"     💰 Lot:    {pos['lot']} (เสี่ยง ${pos['risk_usd']} ≈ {pos['risk_percent']}%)")
             print(f"     💪 Conf:   {signal['confidence']}%")
             print(f"     💡 {signal['reasoning']}")
 
@@ -226,6 +239,59 @@ def test_signal(df):
         import traceback
         traceback.print_exc()
         return None
+
+
+# ============================
+# Test 3b: Trade Plan ครบชุด
+# ============================
+def test_trade_plan():
+    print_step("3b", "ตรวจแผนเทรดครบชุด (Buy/SL/TP + Lot)")
+
+    try:
+        from app.strategies.trend_following import build_trade_plan
+
+        entry, atr = 3300.0, 20.0
+        # ใช้พอร์ตใหญ่พอให้ lot ไม่ติดเพดาน min_lot (ทดสอบสูตร sizing)
+        risk_cfg = {"account_balance": 100000.0, "risk_percent": 1.0}
+        buy = build_trade_plan("BUY", entry, atr, risk_cfg)
+        sell = build_trade_plan("SELL", entry, atr, risk_cfg)
+
+        # BUY: SL ต่ำกว่า entry, TP ไล่ขึ้นตามลำดับ
+        assert buy["sl"] < buy["entry"] < buy["tp1"] < buy["tp2"] < buy["tp3"], "ลำดับราคา BUY ผิด"
+        # SELL: กลับด้าน
+        assert sell["tp3"] < sell["tp2"] < sell["tp1"] < sell["entry"] < sell["sl"], "ลำดับราคา SELL ผิด"
+        # partial close รวมกัน = 100%
+        total_pct = sum(t["close_percent"] for t in buy["tp"])
+        assert total_pct == 100, f"partial close รวม {total_pct}% ไม่ครบ 100"
+        # lot อยู่ในช่วงที่ตั้ง + risk ใกล้เคียงเป้า (พอร์ตใหญ่ = ไม่ติดเพดาน)
+        pos = buy["position"]
+        assert 0.01 <= pos["lot"] <= 5.0, f"lot {pos['lot']} เกินขอบเขต"
+        target_risk = pos["account_balance"] * pos["risk_percent"] / 100
+        assert abs(pos["risk_usd"] - target_risk) <= target_risk * 0.1, "risk_usd เพี้ยนจากเป้าหมาย"
+        # พอร์ตเล็ก → ติดเพดาน min_lot → ต้องตั้งธง risk_exceeds_target
+        small = build_trade_plan("BUY", entry, atr, {"account_balance": 1000.0, "risk_percent": 1.0})
+        assert small["position"]["risk_exceeds_target"] is True, "ควรเตือนเมื่อ risk เกินเป้า"
+        # entry zone ครอบ entry
+        assert buy["entry_zone"]["min"] <= buy["entry"] <= buy["entry_zone"]["max"], "entry zone ไม่ครอบ entry"
+
+        print_pass("แผนเทรดครบชุดถูกต้อง (BUY + SELL)")
+        print()
+        print(f"  {GOLD}📋 ตัวอย่าง BUY @ {entry} (ATR {atr}):{RESET}")
+        print(f"     Entry zone: ${buy['entry_zone']['min']} – ${buy['entry_zone']['max']}")
+        print(f"     SL: ${buy['sl']}  (ระยะ {buy['sl_distance']})")
+        for t in buy["tp"]:
+            print(f"     TP{t['level']}: ${t['price']}  R:R 1:{t['rr']}  ปิด {t['close_percent']}%")
+        print(f"     Lot: {pos['lot']}  | เสี่ยง ${pos['risk_usd']} ({pos['risk_percent']}% ของ ${pos['account_balance']})")
+        print(f"     Breakeven เมื่อถึง {buy['management']['breakeven_trigger']}, "
+              f"trailing {buy['management']['trailing_distance']}")
+
+        return True
+
+    except Exception as e:
+        print_fail(f"แผนเทรดครบชุดผิดพลาด: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 # ============================
@@ -437,6 +503,12 @@ def main():
     # Test 3: Signal
     signal = test_signal(df)
     if signal:
+        results["pass"] += 1
+    else:
+        results["fail"] += 1
+
+    # Test 3b: Trade Plan ครบชุด
+    if test_trade_plan():
         results["pass"] += 1
     else:
         results["fail"] += 1

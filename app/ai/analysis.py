@@ -45,7 +45,9 @@ Analyze this trading signal and provide your assessment.
 - Stop Loss: ${signal['sl']}
 - Take Profit 1: ${signal['tp1']}
 - Take Profit 2: ${signal['tp2']}
-- R:R Ratio: 1:{signal['rr_ratio']}
+- Take Profit 3: ${signal.get('tp3', 'N/A')}
+- R:R Ratio (to TP1): 1:{signal['rr_ratio']}
+- Position Size: {signal.get('trade_plan', {}).get('position', {}).get('lot', 'N/A')} lot
 - Strategy Confidence: {signal['confidence']}%
 - Reasoning: {signal['reasoning']}
 
