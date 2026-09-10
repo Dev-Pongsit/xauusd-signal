@@ -347,6 +347,37 @@ def test_notification(signal):
 # ============================
 # Test 7: Dashboard
 # ============================
+def test_ema_ribbon():
+    """ทดสอบตัวจำแนกสีเส้น EMA (แถบสีบน dashboard card)"""
+    print(f"\n{CYAN}{BOLD}{'='*50}")
+    print(f"  [EMA Ribbon] เช็คสีเส้น EMA")
+    print(f"{'='*50}{RESET}\n")
+
+    from app.strategies.trend_following import classify_ema_ribbon
+
+    cases = [
+        # (ema_fast, ema_slow, atr, expected_state)
+        (2050.0, 2040.0, 5.0, "bullish"),   # เร็ว > ช้า ชัดเจน
+        (2040.0, 2050.0, 5.0, "bearish"),   # เร็ว < ช้า ชัดเจน
+        (2050.10, 2050.0, 8.0, "neutral"),  # ห่างกัน 0.1 < 5% ของ ATR (0.4)
+        (2050.0, 2040.0, None, "bullish"),  # ไม่มี ATR ก็ยังจำแนกได้
+    ]
+
+    ok = True
+    for ema_fast, ema_slow, atr, expected in cases:
+        result = classify_ema_ribbon(ema_fast, ema_slow, atr)
+        got = result["state"]
+        # โครงสร้าง dict ต้องครบสำหรับ template
+        has_keys = all(k in result for k in ("state", "gap", "color", "icon", "label"))
+        if got == expected and has_keys:
+            print_pass(f"EMA {ema_fast}/{ema_slow} atr={atr} → {got}")
+        else:
+            print_fail(f"EMA {ema_fast}/{ema_slow} atr={atr} → {got} (คาดว่า {expected}, keys_ok={has_keys})")
+            ok = False
+
+    return ok
+
+
 def test_dashboard():
     print_step(7, "เปิด Web Dashboard")
 
@@ -428,6 +459,12 @@ def main():
             results["pass"] += 1
         else:
             results["fail"] += 1
+
+    # Test: EMA Ribbon color check (ไม่ต้องใช้ network)
+    if test_ema_ribbon():
+        results["pass"] += 1
+    else:
+        results["fail"] += 1
 
     # Summary
     print(f"""

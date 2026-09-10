@@ -39,6 +39,40 @@ DEFAULT_PARAMS = {
 }
 
 
+def classify_ema_ribbon(ema_fast: float, ema_slow: float,
+                        atr: float | None = None) -> dict:
+    """
+    จำแนก "สีเส้น EMA" สำหรับแสดงเป็นแถบสีบน dashboard card
+
+    - เขียว (bullish) = EMA เร็วอยู่เหนือ EMA ช้า → โมเมนตัมขาขึ้น
+    - แดง (bearish)   = EMA เร็วอยู่ใต้ EMA ช้า → โมเมนตัมขาลง
+    - เทา (neutral)   = สองเส้นเกือบชนกัน (sideways / กำลังตัดกัน)
+
+    เกณฑ์ neutral: ระยะห่างสองเส้น <= 5% ของ ATR (ถ้ามี ATR)
+    """
+    gap = float(ema_fast) - float(ema_slow)
+    flat_threshold = (atr * 0.05) if atr and atr > 0 else 0.0
+
+    if abs(gap) <= flat_threshold:
+        state = "neutral"
+    elif gap > 0:
+        state = "bullish"
+    else:
+        state = "bearish"
+
+    meta = {
+        "bullish": {"color": "#00D4AA", "icon": "🟢", "label": "EMA ขาขึ้น"},
+        "bearish": {"color": "#FF4757", "icon": "🔴", "label": "EMA ขาลง"},
+        "neutral": {"color": "#8B8DA0", "icon": "⚪", "label": "EMA sideways"},
+    }[state]
+
+    return {
+        "state": state,
+        "gap": round(gap, 2),
+        **meta,
+    }
+
+
 def calculate_indicators(df: pd.DataFrame, params: dict = None) -> pd.DataFrame:
     """คำนวณ indicators ทั้งหมด"""
     p = {**DEFAULT_PARAMS, **(params or {})}
@@ -188,6 +222,7 @@ def generate_signal(df: pd.DataFrame, params: dict = None) -> dict | None:
         "tp2": round(tp2, 2),
         "rr_ratio": round(rr_ratio, 2),
         "reasoning": reasoning,
+        "ema_ribbon": classify_ema_ribbon(ema_fast_now, ema_slow_now, atr_now),
         "indicators": {
             "ema_fast": round(ema_fast_now, 2),
             "ema_slow": round(ema_slow_now, 2),

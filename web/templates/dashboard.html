@@ -248,6 +248,37 @@
         .strength-badge.moderate { background: rgba(78,205,196,0.15); color: var(--moderate); }
         .strength-badge.weak { background: rgba(139,141,160,0.15); color: var(--text-dim); }
 
+        /* EMA Ribbon Color Check */
+        .ema-ribbon {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid var(--ribbon-color, var(--card-border));
+            background: color-mix(in srgb, var(--ribbon-color, var(--text-dim)) 12%, transparent);
+            color: var(--ribbon-color, var(--text-dim));
+        }
+        .ema-ribbon.bullish { --ribbon-color: var(--buy); }
+        .ema-ribbon.bearish { --ribbon-color: var(--sell); }
+        .ema-ribbon.neutral { --ribbon-color: var(--text-dim); }
+        .ema-ribbon .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--ribbon-color, var(--text-dim));
+            flex-shrink: 0;
+        }
+        .ema-ribbon .ribbon-vals {
+            margin-left: auto;
+            font-weight: 500;
+            color: var(--text-dim);
+            font-size: 12px;
+        }
+
         .signal-body {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -428,6 +459,25 @@
                     </span>
                 </div>
             </div>
+
+            <!-- EMA Ribbon — เช็คสีเส้น EMA -->
+            {% set rb = s.ema_ribbon %}
+            {% if rb %}
+                {% set rb_state = rb.state %}
+                {% set rb_icon = rb.icon %}
+                {% set rb_label = rb.label %}
+            {% elif s.indicators %}
+                {% set rb_state = 'bullish' if s.indicators.ema_fast > s.indicators.ema_slow else 'bearish' %}
+                {% set rb_icon = '🟢' if rb_state == 'bullish' else '🔴' %}
+                {% set rb_label = 'EMA ขาขึ้น' if rb_state == 'bullish' else 'EMA ขาลง' %}
+            {% endif %}
+            {% if rb_state %}
+            <div class="ema-ribbon {{ rb_state }}">
+                <span class="dot"></span>
+                <span>{{ rb_icon }} {{ rb_label }}</span>
+                <span class="ribbon-vals">EMA 9: {{ s.indicators.ema_fast }} · EMA 21: {{ s.indicators.ema_slow }}</span>
+            </div>
+            {% endif %}
 
             <div class="signal-body">
                 <!-- Prices -->
